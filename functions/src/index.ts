@@ -1,32 +1,49 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
-import {setGlobalOptions} from "firebase-functions";
-import {onRequest} from "firebase-functions/https";
+import {setGlobalOptions} from "firebase-functions/v2";
+import {onDocumentWritten} from "firebase-functions/v2/firestore";
+import {initializeApp} from "firebase-admin/app";
+import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
+initializeApp();
+setGlobalOptions({maxInstances: 10, region: "us-west2"});
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+const VALID_ROLES = new Set([
+  "USER",
+  "CLIENT",
+  "CLINICIAN",
+  "PUBLICIST",
+  "ADMIN",
+]);
 
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+/**
+ * Mirror Firestore users/{uid}.role into Auth custom claims so security rules
+ * and the client can trust request.auth.token.role.
+ */
+export const syncUserRoleClaims = onDocumentWritten(
+  "users/{uid}",
+  async (event) => {
+    const uid = event.params.uid;
+    const after = event.data?.after;
+    if (!after?.exists) {
+      logger.info("User profile deleted; clearing claims", {uid});
+      await getAuth().setCustomUserClaims(uid, {role: "USER"});
+      return;
+    }
+
+    const role = after.get("role") as string | undefined;
+    if (!role || !VALID_ROLES.has(role)) {
+      logger.warn("Invalid or missing role; defaulting to USER", {uid, role});
+      await getAuth().setCustomUserClaims(uid, {role: "USER"});
+      return;
+    }
+
+    const user = await getAuth().getUser(uid);
+    const current = (user.customClaims?.role as string | undefined) ?? null;
+    if (current === role) {
+      return;
+    }
+
+    await getAuth().setCustomUserClaims(uid, {role});
+    logger.info("Synced custom claims", {uid, role});
+  },
+);

@@ -1,9 +1,13 @@
+import { useAuth } from '@/context/AuthContext'
 import { CRISIS_DISCLAIMER_FULL, PRACTICE } from '@/lib/content'
+import { hasMinRole } from '@/lib/types'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 
 export function ContactPage() {
+  const { user, profile } = useAuth()
   const [sent, setSent] = useState(false)
+  const canChat = Boolean(user && hasMinRole(profile?.role, 'CLIENT'))
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -95,12 +99,24 @@ export function ContactPage() {
               queue when available. This is not therapy and not crisis care.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link to="/login" className="btn-primary no-underline">
-                Log in to chat
-              </Link>
-              <Link to="/signup" className="btn-secondary no-underline">
-                Create account
-              </Link>
+              {canChat ? (
+                <Link to="/account" className="btn-primary no-underline">
+                  Chat UI coming soon — manage access
+                </Link>
+              ) : user ? (
+                <Link to="/account" className="btn-primary no-underline">
+                  Enable chat on your account
+                </Link>
+              ) : (
+                <>
+                  <Link to="/login" className="btn-primary no-underline">
+                    Log in to chat
+                  </Link>
+                  <Link to="/signup" className="btn-secondary no-underline">
+                    Create account
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 

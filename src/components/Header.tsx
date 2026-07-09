@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext'
 import { PRACTICE } from '@/lib/content'
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
@@ -13,6 +14,70 @@ const links = [
 
 export function Header() {
   const [open, setOpen] = useState(false)
+  const { user, profile, loading, logOut } = useAuth()
+
+  const authButtons = user ? (
+    <>
+      <Link to="/account" className="btn-ghost no-underline">
+        {profile?.displayName?.split(' ')[0] || 'Account'}
+      </Link>
+      <button
+        type="button"
+        className="btn-secondary"
+        onClick={() => void logOut()}
+      >
+        Log out
+      </button>
+    </>
+  ) : (
+    <>
+      <Link to="/login" className="btn-ghost no-underline">
+        Log in
+      </Link>
+      <Link to="/signup" className="btn-primary no-underline">
+        Join
+      </Link>
+    </>
+  )
+
+  const mobileAuth = user ? (
+    <>
+      <Link
+        to="/account"
+        onClick={() => setOpen(false)}
+        className="btn-secondary flex-1 no-underline"
+      >
+        Account
+      </Link>
+      <button
+        type="button"
+        className="btn-primary flex-1"
+        onClick={() => {
+          setOpen(false)
+          void logOut()
+        }}
+      >
+        Log out
+      </button>
+    </>
+  ) : (
+    <>
+      <Link
+        to="/login"
+        onClick={() => setOpen(false)}
+        className="btn-secondary flex-1 no-underline"
+      >
+        Log in
+      </Link>
+      <Link
+        to="/signup"
+        onClick={() => setOpen(false)}
+        className="btn-primary flex-1 no-underline"
+      >
+        Join
+      </Link>
+    </>
+  )
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-cream/85 backdrop-blur-md">
@@ -32,7 +97,9 @@ export function Header() {
               key={link.to}
               to={link.to}
               className={({ isActive }) =>
-                isActive ? 'link-nav-active no-underline' : 'link-nav no-underline'
+                isActive
+                  ? 'link-nav-active no-underline'
+                  : 'link-nav no-underline'
               }
             >
               {link.label}
@@ -41,12 +108,11 @@ export function Header() {
         </nav>
 
         <div className="hidden items-center gap-2 lg:flex">
-          <Link to="/login" className="btn-ghost no-underline">
-            Log in
-          </Link>
-          <Link to="/signup" className="btn-primary no-underline">
-            Join
-          </Link>
+          {loading ? (
+            <span className="text-sm text-ink-muted">…</span>
+          ) : (
+            authButtons
+          )}
         </div>
 
         <button
@@ -65,7 +131,10 @@ export function Header() {
           id="mobile-nav"
           className="border-t border-border bg-surface lg:hidden"
         >
-          <nav className="container-page flex flex-col gap-1 py-3" aria-label="Mobile">
+          <nav
+            className="container-page flex flex-col gap-1 py-3"
+            aria-label="Mobile"
+          >
             {links.map((link) => (
               <NavLink
                 key={link.to}
@@ -81,20 +150,7 @@ export function Header() {
               </NavLink>
             ))}
             <div className="mt-2 flex gap-2 border-t border-border pt-3">
-              <Link
-                to="/login"
-                onClick={() => setOpen(false)}
-                className="btn-secondary flex-1 no-underline"
-              >
-                Log in
-              </Link>
-              <Link
-                to="/signup"
-                onClick={() => setOpen(false)}
-                className="btn-primary flex-1 no-underline"
-              >
-                Join
-              </Link>
+              {mobileAuth}
             </div>
           </nav>
         </div>

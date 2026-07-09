@@ -10,11 +10,6 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isStaff() {
-      return isSignedIn()
-        && request.auth.token.role in ['CLINICIAN', 'PUBLICIST', 'ADMIN'];
-    }
-
     function isPublicistOrAdmin() {
       return isSignedIn()
         && request.auth.token.role in ['PUBLICIST', 'ADMIN'];

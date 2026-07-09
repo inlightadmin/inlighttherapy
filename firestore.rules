@@ -6,10 +6,21 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function role() {
+    function tokenRole() {
       return isSignedIn() && 'role' in request.auth.token
         ? request.auth.token.role
+        : null;
+    }
+
+    function docRole() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
         : 'USER';
+    }
+
+    function role() {
+      return tokenRole() != null ? tokenRole() : docRole();
     }
 
     function isSelf(uid) {
@@ -32,20 +43,35 @@ service cloud.firestore {
       return role() == 'ADMIN';
     }
 
-    // User profiles — owner read/write non-role fields; role only via Admin SDK
+    function validClientPromotion() {
+      return resource.data.role == 'USER'
+        && request.resource.data.role == 'CLIENT';
+    }
+
     match /users/{uid} {
       allow read: if isSelf(uid) || isPublicistOrAdmin();
+
+      // New accounts may start as USER or CLIENT (chat/SMS opt-in at signup)
       allow create: if isSelf(uid)
-        && request.resource.data.role == 'USER';
-      allow update: if isSelf(uid)
-        && request.resource.data.role == resource.data.role
-        || isAdmin();
+        && request.resource.data.uid == uid
+        && request.resource.data.role in ['USER', 'CLIENT'];
+
+      // Self may edit profile fields; role only USER→CLIENT (or unchanged). Admin any.
+      allow update: if isAdmin()
+        || (isSelf(uid)
+          && (
+            request.resource.data.role == resource.data.role
+            || validClientPromotion()
+          )
+          && !(request.resource.data.role in ['CLINICIAN', 'PUBLICIST', 'ADMIN']
+            && resource.data.role != request.resource.data.role));
+
       allow delete: if isSelf(uid) || isAdmin();
     }
 
     match /clinicians/{uid} {
       allow read: if true;
-      allow write: if isSelf(uid) && isClinicianOrAbove() || isPublicistOrAdmin();
+      allow write: if (isSelf(uid) && isClinicianOrAbove()) || isPublicistOrAdmin();
     }
 
     match /siteSettings/{docId} {
@@ -59,13 +85,15 @@ service cloud.firestore {
     }
 
     match /tools/{id} {
-      allow read: if resource.data.published == true || isPublicistOrAdmin();
+      allow read: if resource == null
+        || resource.data.published == true
+        || isPublicistOrAdmin();
       allow write: if isPublicistOrAdmin();
     }
 
     match /newsletters/{id} {
-      allow read: if (resource.data.status == 'published' && isSignedIn())
-        || isPublicistOrAdmin();
+      allow read: if isPublicistOrAdmin()
+        || (isSignedIn() && resource.data.status == 'published');
       allow write: if isPublicistOrAdmin();
     }
 
@@ -74,7 +102,6 @@ service cloud.firestore {
       allow read, update, delete: if isPublicistOrAdmin();
     }
 
-    // Chat: CLIENT+ create; CLINICIAN+ staff queue; no client-client threads
     match /chats/{chatId} {
       allow read: if isSignedIn()
         && (resource.data.clientUid == request.auth.uid
