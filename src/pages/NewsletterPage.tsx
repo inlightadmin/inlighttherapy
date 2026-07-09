@@ -60,9 +60,8 @@ export function NewsletterPage() {
         <div className="card bg-gradient-to-br from-gold/10 via-surface to-sky/40">
           <h2 className="font-display text-2xl">Member archive</h2>
           <p className="mt-2 text-sm text-ink-muted">
-            Registered users (USER and above) can read past monthly issues after
-            logging in. Create a free account to unlock the archive when it goes
-            live.
+            Registered users can read past monthly issues after logging in. Create a free
+            account to unlock the archive when it goes live.
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
             <Link to="/signup" className="btn-primary no-underline">

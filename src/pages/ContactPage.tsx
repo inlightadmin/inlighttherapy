@@ -95,8 +95,8 @@ export function ContactPage() {
           <div className="card border-sage/30 bg-gradient-to-br from-sage/10 to-sky/30">
             <h2 className="font-display text-2xl">Live chat</h2>
             <p className="mt-2 text-sm text-ink-muted">
-              Chat requires login and CLIENT access or higher. Clinicians join a
-              queue when available. This is not therapy and not crisis care.
+              Chat requires login. Clinicians join a queue when available. This is not
+              therapy and not crisis care.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               {canChat ? (
