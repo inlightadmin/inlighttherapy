@@ -3,9 +3,10 @@ node_modules/
 functions/node_modules/
 functions/lib/
 
-# Build
+# Build / Firebase local
 dist/
 build/
+.firebase/
 .turbo/
 .next/
 
