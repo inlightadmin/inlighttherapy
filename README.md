@@ -10,7 +10,7 @@ Modern TypeScript React web application for [In-Light Therapy](https://in-lightt
 - Vite + React 19 + TypeScript
 - Tailwind CSS v4
 - React Router
-- Firebase (Auth, Firestore, Storage, Hosting, Functions)
+- Firebase (Auth, Firestore, Storage, **Hosting**, Functions) — classic Hosting SPA only (not App Hosting)
 - SendGrid (email + SMS — wired in later phases)
 - Calendly (per-clinician booking links)
 
@@ -51,7 +51,7 @@ npm run build
 firebase deploy --only hosting
 ```
 
-If your Firebase project ID differs from `in-lighttherapy`, update `.firebaserc` and `.env.example`.
+Firebase project ID: **`in-lighttherapy`** (see `.firebaserc`).
 
 ## Project structure
 

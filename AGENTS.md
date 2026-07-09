@@ -4,8 +4,10 @@
 
 In-Light Therapy practice web app: Vite + React + TypeScript + Tailwind, Firebase (Hosting, Auth, Firestore, Storage, Functions). Premium, serene, mobile-first marketing site with membership, newsletter, clinician pages, tools CMS, contact, and queue-based chat.
 
+- Firebase project ID: `in-lighttherapy`
 - Production domain (later): `in-lighttherapy.com`
 - Current hosting target: `https://in-lighttherapy.web.app`
+- Hosting: classic Firebase Hosting SPA only (App Hosting not used)
 - GitHub: `inlightadmin/inlighttherapy` (commits as In-Light Admin / inlightadmin@gmail.com on this machine)
 - Practice email: `inlightadmin@gmail.com`
 - Phone: `801-318-3396`
