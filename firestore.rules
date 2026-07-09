@@ -1,0 +1,104 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return isSignedIn() && 'role' in request.auth.token
+        ? request.auth.token.role
+        : 'USER';
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isClientOrAbove() {
+      return role() in ['CLIENT', 'CLINICIAN', 'PUBLICIST', 'ADMIN'];
+    }
+
+    function isClinicianOrAbove() {
+      return role() in ['CLINICIAN', 'PUBLICIST', 'ADMIN'];
+    }
+
+    function isPublicistOrAdmin() {
+      return role() in ['PUBLICIST', 'ADMIN'];
+    }
+
+    function isAdmin() {
+      return role() == 'ADMIN';
+    }
+
+    // User profiles — owner read/write non-role fields; role only via Admin SDK
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isPublicistOrAdmin();
+      allow create: if isSelf(uid)
+        && request.resource.data.role == 'USER';
+      allow update: if isSelf(uid)
+        && request.resource.data.role == resource.data.role
+        || isAdmin();
+      allow delete: if isSelf(uid) || isAdmin();
+    }
+
+    match /clinicians/{uid} {
+      allow read: if true;
+      allow write: if isSelf(uid) && isClinicianOrAbove() || isPublicistOrAdmin();
+    }
+
+    match /siteSettings/{docId} {
+      allow read: if true;
+      allow write: if isPublicistOrAdmin();
+    }
+
+    match /quotes/{id} {
+      allow read: if true;
+      allow write: if isPublicistOrAdmin();
+    }
+
+    match /tools/{id} {
+      allow read: if resource.data.published == true || isPublicistOrAdmin();
+      allow write: if isPublicistOrAdmin();
+    }
+
+    match /newsletters/{id} {
+      allow read: if (resource.data.status == 'published' && isSignedIn())
+        || isPublicistOrAdmin();
+      allow write: if isPublicistOrAdmin();
+    }
+
+    match /contactMessages/{id} {
+      allow create: if true;
+      allow read, update, delete: if isPublicistOrAdmin();
+    }
+
+    // Chat: CLIENT+ create; CLINICIAN+ staff queue; no client-client threads
+    match /chats/{chatId} {
+      allow read: if isSignedIn()
+        && (resource.data.clientUid == request.auth.uid
+          || isClinicianOrAbove());
+      allow create: if isClientOrAbove()
+        && request.resource.data.clientUid == request.auth.uid;
+      allow update: if isClinicianOrAbove()
+        || (isClientOrAbove() && resource.data.clientUid == request.auth.uid);
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+          && (get(/databases/$(database)/documents/chats/$(chatId)).data.clientUid
+                == request.auth.uid
+            || isClinicianOrAbove());
+        allow create: if isSignedIn()
+          && request.resource.data.senderUid == request.auth.uid
+          && (get(/databases/$(database)/documents/chats/$(chatId)).data.clientUid
+                == request.auth.uid
+            || isClinicianOrAbove());
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

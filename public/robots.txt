@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /account
+Disallow: /chat
+Disallow: /login
+Disallow: /signup
+Disallow: /newsletters
+
+Sitemap: https://in-lighttherapy.web.app/sitemap.xml

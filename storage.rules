@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isStaff() {
+      return isSignedIn()
+        && request.auth.token.role in ['CLINICIAN', 'PUBLICIST', 'ADMIN'];
+    }
+
+    function isPublicistOrAdmin() {
+      return isSignedIn()
+        && request.auth.token.role in ['PUBLICIST', 'ADMIN'];
+    }
+
+    // Profile avatars: owner can read/write; public read for display
+    match /profiles/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isOwner(uid)
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Clinician photos
+    match /clinicians/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if (isOwner(uid) || isPublicistOrAdmin())
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // CMS / marketing assets
+    match /site/{allPaths=**} {
+      allow read: if true;
+      allow write: if isPublicistOrAdmin();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
