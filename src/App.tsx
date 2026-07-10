@@ -11,6 +11,7 @@ import { CliniciansPage } from '@/pages/CliniciansPage'
 import { ContactPage } from '@/pages/ContactPage'
 import { HomePage } from '@/pages/HomePage'
 import { PrivacyPage, TermsPage } from '@/pages/LegalPages'
+import { NewsletterIssuePage } from '@/pages/NewsletterIssuePage'
 import { NewsletterPage } from '@/pages/NewsletterPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ServicesPage } from '@/pages/ServicesPage'
@@ -19,6 +20,7 @@ import { AdminClinicianEditPage } from '@/pages/admin/AdminClinicianEditPage'
 import { AdminCliniciansPage } from '@/pages/admin/AdminCliniciansPage'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { AdminHoursPage } from '@/pages/admin/AdminHoursPage'
+import { AdminNewslettersPage } from '@/pages/admin/AdminNewslettersPage'
 import { AdminQuotesPage } from '@/pages/admin/AdminQuotesPage'
 import { AdminToolsPage } from '@/pages/admin/AdminToolsPage'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
@@ -55,6 +57,7 @@ export default function App() {
             <Route path="clinicians/:slug" element={<ClinicianDetailPage />} />
             <Route path="tools" element={<ToolsPage />} />
             <Route path="newsletter" element={<NewsletterPage />} />
+            <Route path="newsletter/:id" element={<NewsletterIssuePage />} />
             <Route path="contact" element={<ContactPage />} />
             <Route path="location" element={<LocationRedirect />} />
             <Route path="account" element={<AccountPage />} />
@@ -85,6 +88,7 @@ export default function App() {
             >
               <Route index element={<AdminDashboard />} />
               <Route path="chat" element={<StaffChatPage />} />
+              <Route path="newsletters" element={<AdminNewslettersPage />} />
               <Route path="quotes" element={<AdminQuotesPage />} />
               <Route path="tools" element={<AdminToolsPage />} />
               <Route path="hours" element={<AdminHoursPage />} />

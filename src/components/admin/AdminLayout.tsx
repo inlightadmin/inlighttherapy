@@ -5,6 +5,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom'
 const nav = [
   { to: '/admin', label: 'Dashboard', end: true },
   { to: '/admin/chat', label: 'Chat desk' },
+  { to: '/admin/newsletters', label: 'Newsletters' },
   { to: '/admin/quotes', label: 'Quotes' },
   { to: '/admin/tools', label: 'Tools' },
   { to: '/admin/hours', label: 'Hours' },

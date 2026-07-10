@@ -174,6 +174,217 @@ export const sendContactEmail = onCall(
   },
 );
 
+const STAFF_ROLES = new Set(["PUBLICIST", "ADMIN"]);
+
+/**
+ * Email a published newsletter issue to all users with newsletterConsent.agreed.
+ * Callable by PUBLICIST / ADMIN only.
+ */
+export const sendNewsletterBlast = onCall(
+  {
+    region: "us-west2",
+    secrets: [sendgridApiKey],
+    invoker: "public",
+    cors: true,
+    timeoutSeconds: 300,
+    memory: "512MiB",
+  },
+  async (request) => {
+    try {
+      if (!request.auth?.uid) {
+        throw new HttpsError("unauthenticated", "Sign in required.");
+      }
+
+      const db = getFirestore();
+      const callerSnap = await db
+        .collection("users")
+        .doc(request.auth.uid)
+        .get();
+      const callerRole = callerSnap.data()?.role as string | undefined;
+      if (!callerRole || !STAFF_ROLES.has(callerRole)) {
+        throw new HttpsError(
+          "permission-denied",
+          "Only PUBLICIST or ADMIN can send newsletters.",
+        );
+      }
+
+      const newsletterId = asTrimmedString(
+        (request.data as {newsletterId?: unknown})?.newsletterId,
+        "newsletterId",
+        128,
+      );
+
+      const issueSnap = await db
+        .collection("newsletters")
+        .doc(newsletterId)
+        .get();
+      if (!issueSnap.exists) {
+        throw new HttpsError("not-found", "Newsletter issue not found.");
+      }
+      const issue = issueSnap.data()!;
+      if (issue.status === "archived") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Unarchive the issue before sending a blast.",
+        );
+      }
+      if (issue.status !== "published") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Publish the issue before sending a blast.",
+        );
+      }
+
+      const title = String(issue.title ?? "In-Light Therapy Newsletter");
+      const body = String(issue.body ?? "");
+      if (!body.trim()) {
+        throw new HttpsError("failed-precondition", "Issue body is empty.");
+      }
+
+      const key = sendgridApiKey.value();
+      if (!key) {
+        throw new HttpsError("failed-precondition", "Email is not configured.");
+      }
+      sgMail.setApiKey(key);
+
+      const usersSnap = await db.collection("users").get();
+      const recipients: {email: string; name: string}[] = [];
+      for (const userDoc of usersSnap.docs) {
+        const data = userDoc.data();
+        const agreed = data.newsletterConsent?.agreed === true;
+        const email = typeof data.email === "string" ? data.email.trim() : "";
+        if (!agreed || !email || !isValidEmail(email)) continue;
+        recipients.push({
+          email: email.toLowerCase(),
+          name: String(data.displayName || "Friend"),
+        });
+      }
+
+      const unique = new Map<string, string>();
+      for (const r of recipients) {
+        if (!unique.has(r.email)) unique.set(r.email, r.name);
+      }
+
+      const list = [...unique.entries()].map(([email, name]) => ({
+        email,
+        name,
+      }));
+      if (list.length === 0) {
+        throw new HttpsError(
+          "failed-precondition",
+          "No subscribed members with valid emails.",
+        );
+      }
+
+      const siteUrl = "https://in-lighttherapy.web.app";
+      const textBody = [
+        title,
+        "",
+        body,
+        "",
+        "—",
+        "In-Light Therapy",
+        "Manage subscription: " + siteUrl + "/account",
+        "Recent newsletters: " + siteUrl + "/newsletter",
+      ].join("\n");
+
+      const htmlBody = `
+      <div style="font-family:Georgia,serif;max-width:640px;margin:0 auto;color:#1f2933">
+        <h1 style="font-size:28px;font-weight:600">${escapeHtml(title)}</h1>
+        <div style="font-size:16px;line-height:1.6;white-space:pre-wrap">${escapeHtml(body).replace(/\n/g, "<br/>")}</div>
+        <hr style="border:none;border-top:1px solid #e8dfd2;margin:28px 0"/>
+        <p style="font-size:13px;color:#5c6b7a">
+          In-Light Therapy ·
+          <a href="${siteUrl}/account">Manage subscription</a> ·
+          <a href="${siteUrl}/newsletter">Recent newsletters</a>
+        </p>
+      </div>
+    `;
+
+      const CHUNK = 500;
+      let sent = 0;
+      for (let i = 0; i < list.length; i += CHUNK) {
+        const chunk = list.slice(i, i + CHUNK);
+        try {
+          // Send one-by-one within chunk fallbacks if batch personalizations fail
+          await sgMail.sendMultiple({
+            to: chunk.map((r) => r.email),
+            from: {email: CONTACT_FROM, name: "In-Light Therapy"},
+            subject: title,
+            text: textBody,
+            html: htmlBody,
+          });
+          sent += chunk.length;
+        } catch (err) {
+          logger.error("Newsletter blast chunk failed", {
+            i,
+            err: serializeErr(err),
+          });
+          // Fallback: send individually so one bad address doesn't kill all
+          for (const r of chunk) {
+            try {
+              await sgMail.send({
+                to: r.email,
+                from: {email: CONTACT_FROM, name: "In-Light Therapy"},
+                subject: title,
+                text: textBody,
+                html: htmlBody,
+              });
+              sent += 1;
+            } catch (oneErr) {
+              logger.warn("Skip recipient", {
+                email: r.email,
+                err: serializeErr(oneErr),
+              });
+            }
+          }
+        }
+      }
+
+      if (sent === 0) {
+        throw new HttpsError(
+          "internal",
+          "SendGrid rejected all recipients. Verify sender authentication and API key Mail Send access.",
+        );
+      }
+
+      await issueSnap.ref.update({
+        sentAt: FieldValue.serverTimestamp(),
+        sentCount: sent,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      logger.info("Newsletter blast complete", {newsletterId, sent});
+      return {sent, skipped: Math.max(0, list.length - sent)};
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error("sendNewsletterBlast failed", serializeErr(err));
+      const detail =
+        err && typeof err === "object" && "message" in err
+          ? String((err as {message: string}).message)
+          : "Unknown error";
+      throw new HttpsError(
+        "internal",
+        `Newsletter blast failed: ${detail.slice(0, 200)}`,
+      );
+    }
+  },
+);
+
+function serializeErr(err: unknown): unknown {
+  if (!err || typeof err !== "object") return err;
+  const e = err as {
+    message?: string;
+    code?: string | number;
+    response?: {body?: unknown};
+  };
+  return {
+    message: e.message,
+    code: e.code,
+    body: e.response?.body,
+  };
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

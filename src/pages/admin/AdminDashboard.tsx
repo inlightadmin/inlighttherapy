@@ -9,6 +9,11 @@ const cards = [
     body: 'Go available, claim the queue, and reply to live member chats.',
   },
   {
+    to: '/admin/newsletters',
+    title: 'Newsletters',
+    body: 'Write issues, publish recent newsletters, and send SendGrid blasts.',
+  },
+  {
     to: '/admin/quotes',
     title: 'Quotes',
     body: 'Manage rotating quote banners shown across the site.',

@@ -89,3 +89,21 @@ export type BusinessHours = {
   weekly: WeeklyHours
   note?: string
 }
+
+export type NewsletterStatus = 'draft' | 'published' | 'archived'
+
+export type NewsletterIssue = {
+  id: string
+  title: string
+  /** Plain text / simple multi-paragraph body */
+  body: string
+  /** Short teaser for list cards */
+  summary?: string
+  status: NewsletterStatus
+  publishedAt?: string
+  archivedAt?: string
+  createdAt?: string
+  updatedAt?: string
+  sentAt?: string
+  sentCount?: number
+}

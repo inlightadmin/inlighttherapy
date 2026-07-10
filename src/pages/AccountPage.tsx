@@ -461,7 +461,7 @@ export function AccountPage() {
               <>
                 <p className="text-sm text-ink-muted">
                   You are subscribed to the monthly email newsletter at{' '}
-                  {user.email}. Past issues stay available in the member archive
+                  {user.email}. Past issues stay available under Recent newsletters
                   while your account is active.
                 </p>
                 <div className="flex flex-wrap gap-2">

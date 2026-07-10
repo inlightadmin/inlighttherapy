@@ -11,10 +11,13 @@ import {
   type DocumentData,
 } from 'firebase/firestore'
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
-import { db, storage } from './firebase'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions, isFirebaseConfigured, storage } from './firebase'
 import type {
   BusinessHours,
   ClinicianProfile,
+  NewsletterIssue,
+  NewsletterStatus,
   Role,
   SiteQuote,
   Tool,
@@ -395,6 +398,196 @@ export async function uploadClinicianPhoto(
   return baseUrl.includes('?')
     ? `${baseUrl}&t=${Date.now()}`
     : `${baseUrl}?t=${Date.now()}`
+}
+
+// ── Newsletters ─────────────────────────────────────────────────────
+
+function mapNewsletterStatus(value: unknown): NewsletterStatus {
+  if (value === 'published' || value === 'archived' || value === 'draft') {
+    return value
+  }
+  return 'draft'
+}
+
+function mapNewsletter(id: string, data: DocumentData): NewsletterIssue {
+  return {
+    id,
+    title: String(data.title ?? ''),
+    body: String(data.body ?? ''),
+    summary: data.summary ? String(data.summary) : undefined,
+    status: mapNewsletterStatus(data.status),
+    publishedAt: data.publishedAt?.toDate
+      ? data.publishedAt.toDate().toISOString()
+      : typeof data.publishedAt === 'string'
+        ? data.publishedAt
+        : undefined,
+    archivedAt: data.archivedAt?.toDate
+      ? data.archivedAt.toDate().toISOString()
+      : typeof data.archivedAt === 'string'
+        ? data.archivedAt
+        : undefined,
+    createdAt: data.createdAt?.toDate
+      ? data.createdAt.toDate().toISOString()
+      : undefined,
+    updatedAt: data.updatedAt?.toDate
+      ? data.updatedAt.toDate().toISOString()
+      : undefined,
+    sentAt: data.sentAt?.toDate
+      ? data.sentAt.toDate().toISOString()
+      : typeof data.sentAt === 'string'
+        ? data.sentAt
+        : undefined,
+    sentCount:
+      typeof data.sentCount === 'number' ? data.sentCount : undefined,
+  }
+}
+
+export async function listNewsletters(options?: {
+  publishedOnly?: boolean
+}): Promise<NewsletterIssue[]> {
+  const database = requireDb()
+  const snap = await getDocs(collection(database, 'newsletters'))
+  let items = snap.docs.map((d) => mapNewsletter(d.id, d.data()))
+  if (options?.publishedOnly) {
+    items = items.filter((n) => n.status === 'published')
+  }
+  return items.sort((a, b) => {
+    const ta = a.publishedAt || a.createdAt || ''
+    const tb = b.publishedAt || b.createdAt || ''
+    return tb.localeCompare(ta)
+  })
+}
+
+export async function getNewsletter(
+  id: string,
+): Promise<NewsletterIssue | null> {
+  const database = requireDb()
+  const snap = await getDoc(doc(database, 'newsletters', id))
+  if (!snap.exists()) return null
+  return mapNewsletter(snap.id, snap.data())
+}
+
+export async function createNewsletter(input: {
+  title: string
+  body: string
+  summary?: string
+  status?: NewsletterStatus
+}): Promise<string> {
+  const database = requireDb()
+  const status = input.status ?? 'draft'
+  const ref = await addDoc(
+    collection(database, 'newsletters'),
+    omitUndefined({
+      title: input.title.trim(),
+      body: input.body.trim(),
+      summary: input.summary?.trim() || null,
+      status,
+      publishedAt: status === 'published' ? serverTimestamp() : null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }),
+  )
+  return ref.id
+}
+
+export async function updateNewsletter(
+  id: string,
+  input: {
+    title?: string
+    body?: string
+    summary?: string
+    status?: NewsletterStatus
+  },
+): Promise<void> {
+  const database = requireDb()
+  const patch: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+  }
+  if (input.title !== undefined) patch.title = input.title.trim()
+  if (input.body !== undefined) patch.body = input.body.trim()
+  if (input.summary !== undefined) patch.summary = input.summary.trim() || null
+  if (input.status !== undefined) {
+    patch.status = input.status
+    if (input.status === 'published') {
+      const existing = await getDoc(doc(database, 'newsletters', id))
+      if (!existing.data()?.publishedAt) {
+        patch.publishedAt = serverTimestamp()
+      }
+      // Restoring from archive clears archivedAt
+      patch.archivedAt = null
+    }
+    if (input.status === 'archived') {
+      patch.archivedAt = serverTimestamp()
+    }
+  }
+  await updateDoc(doc(database, 'newsletters', id), omitUndefined(patch))
+}
+
+/** Archive a blasted issue so it no longer appears in Recent newsletters. */
+export async function archiveNewsletter(id: string): Promise<void> {
+  const database = requireDb()
+  const snap = await getDoc(doc(database, 'newsletters', id))
+  if (!snap.exists()) throw new Error('Newsletter not found.')
+  const data = snap.data()
+  if (!data.sentAt) {
+    throw new Error('Only issues that have been blasted can be archived.')
+  }
+  await updateDoc(doc(database, 'newsletters', id), {
+    status: 'archived',
+    archivedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/** Return an archived issue to published (visible in Recent newsletters again). */
+export async function unarchiveNewsletter(id: string): Promise<void> {
+  const database = requireDb()
+  await updateDoc(doc(database, 'newsletters', id), {
+    status: 'published',
+    archivedAt: null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/**
+ * Permanently delete a newsletter issue.
+ * Allowed: draft, published (not yet blasted), or archived (caller must be ADMIN — UI + rules).
+ * Blocked: published issues that have already been blasted (use archive instead).
+ */
+export async function deleteNewsletter(id: string): Promise<void> {
+  const database = requireDb()
+  const snap = await getDoc(doc(database, 'newsletters', id))
+  if (!snap.exists()) throw new Error('Newsletter not found.')
+  const data = snap.data()
+  const status = data.status as string | undefined
+  const hasBeenBlasted = Boolean(data.sentAt)
+
+  if (status === 'published' && hasBeenBlasted) {
+    throw new Error(
+      'Blasted issues cannot be deleted. Archive them instead.',
+    )
+  }
+  if (status !== 'draft' && status !== 'published' && status !== 'archived') {
+    throw new Error('This newsletter cannot be deleted.')
+  }
+
+  await deleteDoc(doc(database, 'newsletters', id))
+}
+
+/** Send published issue to all subscribed members via Cloud Function. */
+export async function sendNewsletterBlast(newsletterId: string): Promise<{
+  sent: number
+  skipped: number
+}> {
+  if (!isFirebaseConfigured || !functions) {
+    throw new Error('Firebase is not configured')
+  }
+  const callable = httpsCallable<
+    { newsletterId: string },
+    { sent: number; skipped: number }
+  >(functions, 'sendNewsletterBlast')
+  const result = await callable({ newsletterId })
+  return result.data
 }
 
 // ── Users (admin) ───────────────────────────────────────────────────

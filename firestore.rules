@@ -116,9 +116,24 @@ service cloud.firestore {
     }
 
     match /newsletters/{id} {
+      // Members see published only (not draft/archived). Staff see all.
       allow read: if isPublicistOrAdmin()
         || (isSignedIn() && resource.data.status == 'published');
-      allow write: if isPublicistOrAdmin();
+      allow create, update: if isPublicistOrAdmin();
+      // Delete: draft or unsent published (PUBLICIST+); archived only ADMIN.
+      // Blasted (sentAt set) published issues cannot be deleted — archive instead.
+      allow delete: if isPublicistOrAdmin()
+        && (
+          resource.data.status == 'draft'
+          || (
+            resource.data.status == 'published'
+            && !('sentAt' in resource.data)
+          )
+          || (
+            resource.data.status == 'archived'
+            && isAdmin()
+          )
+        );
     }
 
     match /contactMessages/{id} {
