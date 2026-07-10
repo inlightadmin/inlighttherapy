@@ -1,5 +1,7 @@
 import { FirebaseStatus } from '@/components/FirebaseStatus'
 import { Layout } from '@/components/Layout'
+import { AdminLayout } from '@/components/admin/AdminLayout'
+import { RequireStaff } from '@/components/admin/RequireStaff'
 import { AuthProvider } from '@/context/AuthContext'
 import { AboutPage } from '@/pages/AboutPage'
 import { AccountPage } from '@/pages/AccountPage'
@@ -13,6 +15,15 @@ import { NewsletterPage } from '@/pages/NewsletterPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ServicesPage } from '@/pages/ServicesPage'
 import { ToolsPage } from '@/pages/ToolsPage'
+import { AdminClinicianEditPage } from '@/pages/admin/AdminClinicianEditPage'
+import { AdminCliniciansPage } from '@/pages/admin/AdminCliniciansPage'
+import { AdminDashboard } from '@/pages/admin/AdminDashboard'
+import { AdminHoursPage } from '@/pages/admin/AdminHoursPage'
+import { AdminQuotesPage } from '@/pages/admin/AdminQuotesPage'
+import { AdminToolsPage } from '@/pages/admin/AdminToolsPage'
+import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
+import { ChatPage } from '@/pages/ChatPage'
+import { StaffChatPage } from '@/pages/StaffChatPage'
 import { useEffect } from 'react'
 import {
   BrowserRouter,
@@ -47,11 +58,51 @@ export default function App() {
             <Route path="contact" element={<ContactPage />} />
             <Route path="location" element={<LocationRedirect />} />
             <Route path="account" element={<AccountPage />} />
+            <Route path="chat" element={<ChatPage />} />
+            <Route
+              path="chat/staff"
+              element={
+                <RequireStaff minRole="CLINICIAN">
+                  <div className="container-page py-10 sm:py-12">
+                    <StaffChatPage />
+                  </div>
+                </RequireStaff>
+              }
+            />
             <Route path="login" element={<LoginPage />} />
             <Route path="signup" element={<SignupPage />} />
             <Route path="terms" element={<TermsPage />} />
             <Route path="privacy" element={<PrivacyPage />} />
             <Route path="home" element={<Navigate to="/" replace />} />
+
+            <Route
+              path="admin"
+              element={
+                <RequireStaff minRole="PUBLICIST">
+                  <AdminLayout />
+                </RequireStaff>
+              }
+            >
+              <Route index element={<AdminDashboard />} />
+              <Route path="chat" element={<StaffChatPage />} />
+              <Route path="quotes" element={<AdminQuotesPage />} />
+              <Route path="tools" element={<AdminToolsPage />} />
+              <Route path="hours" element={<AdminHoursPage />} />
+              <Route path="clinicians" element={<AdminCliniciansPage />} />
+              <Route
+                path="clinicians/:uid"
+                element={<AdminClinicianEditPage />}
+              />
+              <Route
+                path="users"
+                element={
+                  <RequireStaff minRole="ADMIN">
+                    <AdminUsersPage />
+                  </RequireStaff>
+                }
+              />
+            </Route>
+
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

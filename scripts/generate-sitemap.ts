@@ -63,6 +63,7 @@ const robots = `User-agent: *
 Allow: /
 
 Disallow: /admin
+Disallow: /admin/
 Disallow: /account
 Disallow: /chat
 Disallow: /login

@@ -1,14 +1,27 @@
 import { HoursTable } from '@/components/HoursTable'
 import { QuoteBanner } from '@/components/QuoteBanner'
+import { getBusinessHours, listPublishedClinicians } from '@/lib/cms'
 import {
   PLACEHOLDER_CLINICIANS,
   PLACEHOLDER_HOURS,
   PRACTICE,
 } from '@/lib/content'
+import type { BusinessHours, ClinicianProfile } from '@/lib/types'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 export function HomePage() {
-  const featured = PLACEHOLDER_CLINICIANS[0]
+  const [hours, setHours] = useState<BusinessHours>(PLACEHOLDER_HOURS)
+  const [featured, setFeatured] = useState<ClinicianProfile | undefined>(
+    PLACEHOLDER_CLINICIANS[0],
+  )
+
+  useEffect(() => {
+    void getBusinessHours().then(setHours)
+    void listPublishedClinicians().then((list) => {
+      if (list[0]) setFeatured(list[0])
+    })
+  }, [])
 
   return (
     <>
@@ -113,7 +126,7 @@ export function HomePage() {
               Our approach
             </Link>
           </div>
-          <HoursTable hours={PLACEHOLDER_HOURS} />
+          <HoursTable hours={hours} />
         </div>
       </section>
 

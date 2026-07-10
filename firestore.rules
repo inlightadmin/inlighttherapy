@@ -19,8 +19,13 @@ service cloud.firestore {
         : 'USER';
     }
 
+    // Prefer Firestore users/{uid}.role as source of truth (CMS may update
+    // before custom claims refresh). Fall back to token claim, then USER.
     function role() {
-      return tokenRole() != null ? tokenRole() : docRole();
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : (tokenRole() != null ? tokenRole() : 'USER');
     }
 
     function isSelf(uid) {
@@ -93,7 +98,9 @@ service cloud.firestore {
 
     match /siteSettings/{docId} {
       allow read: if true;
-      allow write: if isPublicistOrAdmin();
+      // Staff can toggle chat presence; Publicist+ can edit all site settings
+      allow write: if isPublicistOrAdmin()
+        || (docId == 'chatPresence' && isClinicianOrAbove());
     }
 
     match /quotes/{id} {
@@ -123,10 +130,19 @@ service cloud.firestore {
       allow read: if isSignedIn()
         && (resource.data.clientUid == request.auth.uid
           || isClinicianOrAbove());
-      allow create: if isClientOrAbove()
-        && request.resource.data.clientUid == request.auth.uid;
+      // Clients open their own threads; staff may also open for testing (CLINICIAN+)
+      allow create: if isSignedIn()
+        && request.resource.data.clientUid == request.auth.uid
+        && (
+          isClientOrAbove()
+          || isClinicianOrAbove()
+        )
+        && request.resource.data.status in ['queued', 'active'];
+      // Staff claim/close; client may close own chat
       allow update: if isClinicianOrAbove()
-        || (isClientOrAbove() && resource.data.clientUid == request.auth.uid);
+        || (isSignedIn()
+          && resource.data.clientUid == request.auth.uid
+          && request.resource.data.clientUid == resource.data.clientUid);
 
       match /messages/{messageId} {
         allow read: if isSignedIn()
@@ -135,6 +151,10 @@ service cloud.firestore {
             || isClinicianOrAbove());
         allow create: if isSignedIn()
           && request.resource.data.senderUid == request.auth.uid
+          && request.resource.data.keys().hasAll(['senderUid', 'text', 'senderKind'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
           && (get(/databases/$(database)/documents/chats/$(chatId)).data.clientUid
                 == request.auth.uid
             || isClinicianOrAbove());

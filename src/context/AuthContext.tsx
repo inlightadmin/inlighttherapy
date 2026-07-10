@@ -17,6 +17,7 @@ import {
   updateUserPhoto,
   type SignupInput,
 } from '@/lib/auth'
+import { goOfflineIfAvailable } from '@/lib/chat'
 import { auth, isFirebaseConfigured } from '@/lib/firebase'
 import type { UserProfile } from '@/lib/types'
 import {
@@ -129,9 +130,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         applyProfile(p)
       },
       logOut: async () => {
+        // If this user was "available" for live chat, mark offline before signing out
+        if (user) {
+          await goOfflineIfAvailable(user.uid)
+        }
         await signOut()
         profileFetchGen.current += 1
         setProfile(null)
+        setUser(null)
       },
       optInChat: async () => {
         if (!user) throw new Error('Not signed in')
@@ -187,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       deleteAccount: async () => {
         if (!user) throw new Error('Not signed in')
+        await goOfflineIfAvailable(user.uid)
         await deleteUserAccount(user)
         profileFetchGen.current += 1
         setProfile(null)

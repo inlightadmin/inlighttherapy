@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthContext'
+import { mapContactError, sendContactMessage } from '@/lib/contact'
 import { PRACTICE } from '@/lib/content'
 import { hasMinRole } from '@/lib/types'
 import { useEffect, useState, type FormEvent } from 'react'
@@ -8,25 +9,44 @@ export function ContactPage() {
   const { user, profile } = useAuth()
   const { hash } = useLocation()
   const [sent, setSent] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
   const canChat = Boolean(user && hasMinRole(profile?.role, 'CLIENT'))
   const { location } = PRACTICE
+
+  useEffect(() => {
+    if (user?.email && !email) setEmail(user.email)
+    if (profile?.displayName && !name) setName(profile.displayName)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prefill once when auth loads
+  }, [user?.email, profile?.displayName])
 
   // Support /contact#location and /location → #location deep links
   useEffect(() => {
     if (hash !== '#location') return
     const el = document.getElementById('location')
     if (!el) return
-    // Defer until layout paints (important after client-side redirect)
     const id = window.requestAnimationFrame(() => {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
     return () => window.cancelAnimationFrame(id)
   }, [hash])
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    // Cloud Function + SendGrid will wire here in a later phase.
-    setSent(true)
+    setBusy(true)
+    setError(null)
+    try {
+      await sendContactMessage({ name, email, message })
+      setSent(true)
+      setMessage('')
+    } catch (err) {
+      setError(mapContactError(err))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -50,16 +70,29 @@ export function ContactPage() {
         >
           <h2 className="font-display text-2xl">Email us</h2>
           {sent ? (
-            <p className="rounded-xl border border-sage/30 bg-sage/10 px-3 py-2 text-xs text-sage">
-              Thanks — message ready. You can also email{' '}
-              <a href={`mailto:${PRACTICE.email}`}>{PRACTICE.email}</a>.
+            <p className="rounded-xl border border-sage/30 bg-sage/10 px-3 py-2 text-sm text-sage">
+              Thank you — your message was sent. We will get back to you soon.
+            </p>
+          ) : null}
+          {error ? (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger">
+              {error}{' '}
+              <a href={`mailto:${PRACTICE.email}`}>Email us directly</a>
             </p>
           ) : null}
           <div>
             <label className="label" htmlFor="name">
               Name
             </label>
-            <input id="name" name="name" required className="input py-2.5" />
+            <input
+              id="name"
+              name="name"
+              required
+              className="input py-2.5"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={busy || sent}
+            />
           </div>
           <div>
             <label className="label" htmlFor="email">
@@ -71,6 +104,9 @@ export function ContactPage() {
               type="email"
               required
               className="input py-2.5"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={busy || sent}
             />
           </div>
           <div className="flex min-h-0 flex-1 flex-col">
@@ -83,11 +119,14 @@ export function ContactPage() {
               required
               rows={3}
               className="input min-h-[5.5rem] flex-1 resize-y py-2.5 lg:min-h-[7rem]"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              disabled={busy || sent}
             />
           </div>
           <div className="pt-1">
-            <button type="submit" className="btn-primary">
-              Send message
+            <button type="submit" className="btn-primary" disabled={busy || sent}>
+              {busy ? 'Sending…' : sent ? 'Message sent' : 'Send message'}
             </button>
           </div>
         </form>
@@ -127,8 +166,8 @@ export function ContactPage() {
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               {canChat ? (
-                <Link to="/account" className="btn-primary no-underline">
-                  Chat UI coming soon — manage access
+                <Link to="/chat" className="btn-primary no-underline">
+                  Open live chat
                 </Link>
               ) : user ? (
                 <Link to="/account" className="btn-primary no-underline">

@@ -1,8 +1,12 @@
 import { HoursTable } from '@/components/HoursTable'
-import { PLACEHOLDER_CLINICIANS, PLACEHOLDER_HOURS } from '@/lib/content'
+import { getBusinessHours, getClinicianBySlug } from '@/lib/cms'
+import { PLACEHOLDER_HOURS } from '@/lib/content'
+import type { BusinessHours, ClinicianProfile } from '@/lib/types'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 function TagList({ label, items }: { label: string; items: string[] }) {
+  if (!items?.length) return null
   return (
     <div>
       <h3 className="text-sm font-semibold tracking-wide text-sage uppercase">
@@ -24,15 +28,37 @@ function TagList({ label, items }: { label: string; items: string[] }) {
 
 export function ClinicianDetailPage() {
   const { slug } = useParams()
-  const clinician =
-    PLACEHOLDER_CLINICIANS.find((c) => c.slug === slug) ??
-    PLACEHOLDER_CLINICIANS[0]
+  const [clinician, setClinician] = useState<ClinicianProfile | null>(null)
+  const [siteHours, setSiteHours] = useState<BusinessHours>(PLACEHOLDER_HOURS)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!slug) return
+    void (async () => {
+      const [c, hours] = await Promise.all([
+        getClinicianBySlug(slug),
+        getBusinessHours(),
+      ])
+      setClinician(c)
+      setSiteHours(hours)
+      setLoading(false)
+    })()
+  }, [slug])
+
+  if (loading) {
+    return (
+      <div className="container-page py-16 text-ink-muted">Loading…</div>
+    )
+  }
 
   if (!clinician) {
     return (
       <div className="container-page py-16">
         <h1 className="font-display text-3xl">Clinician not found</h1>
-        <Link to="/clinicians" className="btn-secondary mt-4 inline-flex no-underline">
+        <Link
+          to="/clinicians"
+          className="btn-secondary mt-4 inline-flex no-underline"
+        >
           Back to clinicians
         </Link>
       </div>
@@ -40,8 +66,11 @@ export function ClinicianDetailPage() {
   }
 
   const hours = {
-    ...PLACEHOLDER_HOURS,
-    weekly: clinician.overrideAvailability ?? clinician.selfAvailability ?? PLACEHOLDER_HOURS.weekly,
+    ...siteHours,
+    weekly:
+      clinician.overrideAvailability ??
+      clinician.selfAvailability ??
+      siteHours.weekly,
     note: 'Clinician availability for guidance. Confirm the real-time slot when you book.',
   }
 
@@ -55,13 +84,21 @@ export function ClinicianDetailPage() {
         <div className="lg:col-span-2">
           <div className="card">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-gold to-sage text-xl font-bold text-white">
-                {clinician.displayName
-                  .split(' ')
-                  .slice(0, 2)
-                  .map((p) => p[0])
-                  .join('')}
-              </div>
+              {clinician.photoURL ? (
+                <img
+                  src={clinician.photoURL}
+                  alt=""
+                  className="h-20 w-20 rounded-2xl object-cover"
+                />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-gold to-sage text-xl font-bold text-white">
+                  {clinician.displayName
+                    .split(' ')
+                    .slice(0, 2)
+                    .map((p) => p[0])
+                    .join('')}
+                </div>
+              )}
               <div>
                 <h1 className="font-display text-3xl sm:text-4xl">
                   {clinician.displayName}
@@ -99,7 +136,10 @@ export function ClinicianDetailPage() {
                 Open Calendly
               </a>
             ) : (
-              <Link to="/contact" className="btn-primary mt-4 w-full no-underline">
+              <Link
+                to="/contact"
+                className="btn-primary mt-4 w-full no-underline"
+              >
                 Contact to schedule
               </Link>
             )}

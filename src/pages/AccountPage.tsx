@@ -369,8 +369,8 @@ export function AccountPage() {
 
           <div className="flex flex-wrap gap-2 pt-1">
             {chatEnabled ? (
-              <Link to="/contact" className="btn-primary no-underline">
-                Go to contact / chat
+              <Link to="/chat" className="btn-primary no-underline">
+                Open live chat
               </Link>
             ) : null}
             <button
@@ -412,8 +412,8 @@ export function AccountPage() {
                   crisis care and not therapy.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Link to="/contact" className="btn-secondary no-underline">
-                    Open contact / chat
+                  <Link to="/chat" className="btn-primary no-underline">
+                    Open live chat
                   </Link>
                   <button
                     type="button"

@@ -6,6 +6,10 @@ type Props = {
   children: ReactNode
   confirmLabel?: string
   cancelLabel?: string
+  /** When false, only the primary action is shown (e.g. OK alert) */
+  showCancel?: boolean
+  /** Hide the × control (still allow Escape / backdrop when cancelable) */
+  showCloseX?: boolean
   busy?: boolean
   danger?: boolean
   onConfirm: () => void
@@ -18,6 +22,8 @@ export function ConfirmModal({
   children,
   confirmLabel = 'Continue',
   cancelLabel = 'Cancel',
+  showCancel = true,
+  showCloseX = true,
   busy = false,
   danger = false,
   onConfirm,
@@ -26,7 +32,10 @@ export function ConfirmModal({
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onCancel()
+      if (e.key === 'Escape' && !busy) {
+        if (showCancel) onCancel()
+        else onConfirm()
+      }
     }
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
@@ -35,7 +44,7 @@ export function ConfirmModal({
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
     }
-  }, [open, busy, onCancel])
+  }, [open, busy, onCancel, onConfirm, showCancel])
 
   if (!open) return null
 
@@ -44,7 +53,9 @@ export function ConfirmModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm"
       role="presentation"
       onClick={() => {
-        if (!busy) onCancel()
+        if (busy) return
+        if (showCancel) onCancel()
+        else onConfirm()
       }}
     >
       <div
@@ -54,17 +65,22 @@ export function ConfirmModal({
         className="relative w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-soft sm:p-7"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          type="button"
-          className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition hover:bg-cream-dark hover:text-ink disabled:opacity-50"
-          aria-label="Close"
-          disabled={busy}
-          onClick={onCancel}
-        >
-          <span aria-hidden className="text-xl leading-none">
-            ×
-          </span>
-        </button>
+        {showCloseX ? (
+          <button
+            type="button"
+            className="absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition hover:bg-cream-dark hover:text-ink disabled:opacity-50"
+            aria-label="Close"
+            disabled={busy}
+            onClick={() => {
+              if (showCancel) onCancel()
+              else onConfirm()
+            }}
+          >
+            <span aria-hidden className="text-xl leading-none">
+              ×
+            </span>
+          </button>
+        ) : null}
 
         <h2
           id="confirm-modal-title"
@@ -78,14 +94,16 @@ export function ConfirmModal({
         </div>
 
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={busy}
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </button>
+          {showCancel ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={onCancel}
+            >
+              {cancelLabel}
+            </button>
+          ) : null}
           <button
             type="button"
             className={

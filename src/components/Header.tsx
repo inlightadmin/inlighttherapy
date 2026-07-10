@@ -1,5 +1,7 @@
 import { useAuth } from '@/context/AuthContext'
+import { canUseClientChat, isStaffRole } from '@/lib/chat'
 import { PRACTICE } from '@/lib/content'
+import { hasMinRole } from '@/lib/types'
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
@@ -15,9 +17,26 @@ const links = [
 export function Header() {
   const [open, setOpen] = useState(false)
   const { user, profile, loading, logOut } = useAuth()
+  const isAdminCms = hasMinRole(profile?.role, 'PUBLICIST')
+  const isChatStaff = isStaffRole(profile?.role)
+  const showMemberChat = canUseClientChat(profile)
 
   const authButtons = user ? (
     <>
+      {isAdminCms ? (
+        <Link to="/admin" className="btn-ghost no-underline">
+          Admin
+        </Link>
+      ) : null}
+      {isChatStaff ? (
+        <Link to="/chat/staff" className="btn-ghost no-underline">
+          Chat desk
+        </Link>
+      ) : showMemberChat ? (
+        <Link to="/chat" className="btn-ghost no-underline">
+          Chat
+        </Link>
+      ) : null}
       <Link to="/account" className="btn-ghost no-underline">
         {profile?.displayName?.split(' ')[0] || 'Account'}
       </Link>
@@ -42,6 +61,32 @@ export function Header() {
 
   const mobileAuth = user ? (
     <>
+      {isAdminCms ? (
+        <Link
+          to="/admin"
+          onClick={() => setOpen(false)}
+          className="btn-secondary flex-1 no-underline"
+        >
+          Admin
+        </Link>
+      ) : null}
+      {isChatStaff ? (
+        <Link
+          to="/chat/staff"
+          onClick={() => setOpen(false)}
+          className="btn-secondary flex-1 no-underline"
+        >
+          Chat desk
+        </Link>
+      ) : showMemberChat ? (
+        <Link
+          to="/chat"
+          onClick={() => setOpen(false)}
+          className="btn-secondary flex-1 no-underline"
+        >
+          Chat
+        </Link>
+      ) : null}
       <Link
         to="/account"
         onClick={() => setOpen(false)}

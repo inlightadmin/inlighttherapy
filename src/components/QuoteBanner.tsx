@@ -1,13 +1,21 @@
 import { PLACEHOLDER_QUOTES } from '@/lib/content'
-import { useMemo } from 'react'
+import { listActiveQuotes } from '@/lib/cms'
+import type { SiteQuote } from '@/lib/types'
+import { useEffect, useMemo, useState } from 'react'
 
 export function QuoteBanner() {
+  const [quotes, setQuotes] = useState<SiteQuote[]>(PLACEHOLDER_QUOTES)
+
+  useEffect(() => {
+    void listActiveQuotes().then(setQuotes)
+  }, [])
+
   const quote = useMemo(() => {
-    const active = PLACEHOLDER_QUOTES.filter((q) => q.active)
+    const active = quotes.filter((q) => q.active && q.text.trim())
     if (!active.length) return PLACEHOLDER_QUOTES[0]
     const index = Math.floor(Date.now() / 86_400_000) % active.length
     return active[index]
-  }, [])
+  }, [quotes])
 
   return (
     <section className="relative overflow-hidden border-y border-border/70 bg-gradient-to-br from-sage/10 via-cream to-gold/10">
