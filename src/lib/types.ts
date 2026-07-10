@@ -35,6 +35,11 @@ export type UserProfile = {
     marketing?: boolean
     reminders?: boolean
   }
+  /** Monthly email newsletter (SendGrid) */
+  newsletterConsent?: {
+    agreed: boolean
+    timestamp?: string
+  }
   chatOptIn?: boolean
   termsAcceptedAt?: string
   privacyAcceptedAt?: string

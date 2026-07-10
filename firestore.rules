@@ -43,9 +43,31 @@ service cloud.firestore {
       return role() == 'ADMIN';
     }
 
-    function validClientPromotion() {
-      return resource.data.role == 'USER'
-        && request.resource.data.role == 'CLIENT';
+    function memberRole(r) {
+      return r in ['USER', 'CLIENT'];
+    }
+
+    function staffRole(r) {
+      return r in ['CLINICIAN', 'PUBLICIST', 'ADMIN'];
+    }
+
+    function docRoleBefore() {
+      return 'role' in resource.data ? resource.data.role : 'USER';
+    }
+
+    function docRoleAfter() {
+      return 'role' in request.resource.data
+        ? request.resource.data.role
+        : docRoleBefore();
+    }
+
+    // Self may keep role, or move freely between USER and CLIENT only.
+    // Never self-assign staff; never demote staff from the client.
+    function selfRoleChangeAllowed() {
+      let before = docRoleBefore();
+      let after = docRoleAfter();
+      return before == after
+        || (memberRole(before) && memberRole(after));
     }
 
     match /users/{uid} {
@@ -56,15 +78,10 @@ service cloud.firestore {
         && request.resource.data.uid == uid
         && request.resource.data.role in ['USER', 'CLIENT'];
 
-      // Self may edit profile fields; role only USER→CLIENT (or unchanged). Admin any.
+      // Self: profile + preferences (chat/SMS/newsletter/phone) and USER↔CLIENT.
+      // Admin: any update.
       allow update: if isAdmin()
-        || (isSelf(uid)
-          && (
-            request.resource.data.role == resource.data.role
-            || validClientPromotion()
-          )
-          && !(request.resource.data.role in ['CLINICIAN', 'PUBLICIST', 'ADMIN']
-            && resource.data.role != request.resource.data.role));
+        || (isSelf(uid) && selfRoleChangeAllowed() && !staffRole(docRoleAfter()));
 
       allow delete: if isSelf(uid) || isAdmin();
     }
