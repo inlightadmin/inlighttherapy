@@ -13,7 +13,23 @@ import { NewsletterPage } from '@/pages/NewsletterPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ServicesPage } from '@/pages/ServicesPage'
 import { ToolsPage } from '@/pages/ToolsPage'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { useEffect } from 'react'
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useNavigate,
+} from 'react-router-dom'
+
+/** SEO-friendly URL: /location → /contact#location (Find us section) */
+function LocationRedirect() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    navigate('/contact#location', { replace: true })
+  }, [navigate])
+  return null
+}
 
 export default function App() {
   return (
@@ -29,6 +45,7 @@ export default function App() {
             <Route path="tools" element={<ToolsPage />} />
             <Route path="newsletter" element={<NewsletterPage />} />
             <Route path="contact" element={<ContactPage />} />
+            <Route path="location" element={<LocationRedirect />} />
             <Route path="account" element={<AccountPage />} />
             <Route path="login" element={<LoginPage />} />
             <Route path="signup" element={<SignupPage />} />

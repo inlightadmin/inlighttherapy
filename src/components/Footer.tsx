@@ -67,6 +67,14 @@ export function Footer() {
                 Contact & chat
               </Link>
             </li>
+            <li>
+              <Link
+                className="text-cream/80 no-underline hover:text-gold-soft"
+                to="/location"
+              >
+                {PRACTICE.location.city}, {PRACTICE.location.state}
+              </Link>
+            </li>
           </ul>
         </div>
       </div>

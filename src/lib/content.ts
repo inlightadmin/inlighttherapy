@@ -7,6 +7,24 @@ export const PRACTICE = {
   phone: '801-318-3396',
   phoneHref: 'tel:8013183396',
   siteUrl: import.meta.env.VITE_SITE_URL || 'https://in-lighttherapy.web.app',
+  location: {
+    name: 'In-Light Therapy',
+    street: '2230 N University Pkwy',
+    suite: 'Ste 9D',
+    city: 'Provo',
+    state: 'UT',
+    zip: '84604',
+    fullAddress: '2230 N University Pkwy Ste 9D, Provo, UT 84604',
+    mapsUrl: 'https://maps.app.goo.gl/G3S7TEEp1cvE31h16',
+    /** Google Maps embed for the Google Business place */
+    mapsEmbedSrc:
+      'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3044.609419178564!2d-111.6655313!3d40.262210800000005!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x874d9b1d150d3785%3A0x1ae6ad9d6da55a57!2sin-light%20therapy!5e0!3m2!1sen!2sus!4v1783643311785!5m2!1sen!2sus',
+    notes: [
+      'Lots of parking available',
+      'Wheelchair accessible',
+      'Entrance on the 2nd floor',
+    ],
+  },
 }
 
 export const CRISIS_DISCLAIMER_SHORT =
