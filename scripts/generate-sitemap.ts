@@ -68,6 +68,8 @@ Disallow: /account
 Disallow: /chat
 Disallow: /login
 Disallow: /signup
+Disallow: /auth
+Disallow: /auth/
 Disallow: /newsletters
 
 Sitemap: ${siteUrl}/sitemap.xml

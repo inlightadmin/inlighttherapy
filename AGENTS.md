@@ -9,7 +9,8 @@ In-Light Therapy practice web app: Vite + React + TypeScript + Tailwind, Firebas
 - Current hosting target: `https://in-lighttherapy.web.app`
 - Hosting: classic Firebase Hosting SPA only (App Hosting not used)
 - GitHub: `inlightadmin/inlighttherapy` (commits as In-Light Admin / inlightadmin@gmail.com on this machine)
-- Practice email: `inlightadmin@gmail.com`
+- Practice email (public / contact): `s3an1amb@gmail.com`
+- Developer / Firebase / SendGrid account: `inlightadmin@gmail.com`
 - Phone: `801-318-3396`
 
 ## Roles

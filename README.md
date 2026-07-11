@@ -67,10 +67,25 @@ functions/      # Cloud Functions (TypeScript)
 
 ## Auth setup (Firebase console)
 
-1. Authentication → Sign-in method → enable **Email/Password** and **Google**
+1. Authentication → Sign-in method → enable:
+   - **Email/Password** (for password accounts)
+   - **Email link (passwordless sign-in)** — required for guest newsletter subscribe and “Email me a sign-in link”
+   - **Google**
 2. Authorized domains: `localhost`, `in-lighttherapy.web.app`, later `in-lighttherapy.com`
 3. Google Cloud Console OAuth consent + Web client IDs as prompted
 4. Copy web app config into `.env.local`
+5. Optional: Authentication → Templates → customize the **Email address sign-in** action email (from name, reply-to)
+
+### Passwordless email link (how it works)
+
+1. User enters email on **Newsletter** or **Log in** → `sendSignInLinkToEmail`
+2. Firebase emails a link that continues to `/auth/email-link?next=…&intent=…`
+3. App calls `signInWithEmailLink`, creates/updates `users/{uid}`:
+   - Newsletter intent → `role: USER` + `newsletterConsent.agreed: true`
+   - Login intent → ensure profile exists (no forced newsletter opt-in)
+4. Same-browser completion uses `localStorage` (`emailForSignIn`); other devices prompt for email
+
+Public practice contact: **s3an1amb@gmail.com**. Contact form `To` is that address; SendGrid `From` may still be the verified developer sender until domain authentication is complete.
 
 ## Legal / safety
 

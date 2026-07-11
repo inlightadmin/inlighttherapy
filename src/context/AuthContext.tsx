@@ -1,4 +1,5 @@
 import {
+  completeEmailSignInLink,
   deleteUserAccount,
   fetchUserProfile,
   optInToNewsletter,
@@ -7,6 +8,7 @@ import {
   optOutOfSms,
   promoteToClient,
   removeUserPhone,
+  sendEmailSignInLink,
   signInWithEmail,
   signInWithGoogle,
   signOut,
@@ -15,6 +17,7 @@ import {
   updateUserDisplayName,
   updateUserPhone,
   updateUserPhoto,
+  type EmailLinkIntent,
   type SignupInput,
 } from '@/lib/auth'
 import { goOfflineIfAvailable } from '@/lib/chat'
@@ -50,6 +53,17 @@ type AuthContextValue = {
     phoneE164?: string
     requireConsents?: boolean
   }) => Promise<void>
+  /** Passwordless: send Firebase email sign-in link (newsletter or login). */
+  sendEmailLink: (input: {
+    email: string
+    intent: EmailLinkIntent
+    nextPath?: string
+    privacyAccepted?: boolean
+  }) => Promise<void>
+  /** Finish passwordless sign-in after the user opens the email link. */
+  completeEmailLink: (input?: {
+    email?: string
+  }) => Promise<{ nextPath: string; intent: EmailLinkIntent; profile: UserProfile }>
   logOut: () => Promise<void>
   optInChat: () => Promise<void>
   optInSms: (phoneE164: string) => Promise<void>
@@ -128,6 +142,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInGoogle: async (options) => {
         const p = await signInWithGoogle(options)
         applyProfile(p)
+      },
+      sendEmailLink: async (input) => {
+        await sendEmailSignInLink(input)
+      },
+      completeEmailLink: async (input) => {
+        const result = await completeEmailSignInLink(input)
+        applyProfile(result.profile)
+        // Auth user is set via onAuthStateChanged; bump profile gen already done
+        if (auth?.currentUser) {
+          setUser(auth.currentUser)
+        }
+        return result
       },
       logOut: async () => {
         // If this user was "available" for live chat, mark offline before signing out

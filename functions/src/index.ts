@@ -24,8 +24,12 @@ const VALID_ROLES = new Set([
 
 const sendgridApiKey = defineSecret("SENDGRID_API_KEY");
 
-/** Practice inbox + verified SendGrid single sender (or domain sender). */
-const CONTACT_TO = "inlightadmin@gmail.com";
+/**
+ * Practice inbox (Sean) receives contact form messages.
+ * SendGrid From stays on the verified developer sender until domain auth
+ * (hello@in-lighttherapy.com) is configured.
+ */
+const CONTACT_TO = "s3an1amb@gmail.com";
 const CONTACT_FROM = "inlightadmin@gmail.com";
 const CONTACT_FROM_NAME = "In-Light Therapy Website";
 

@@ -66,6 +66,13 @@ function mapAuthError(err: unknown): string {
       return 'Google sign-in was closed before completing.'
     case 'auth/unauthorized-domain':
       return 'This domain is not authorized in Firebase Auth settings.'
+    case 'auth/operation-not-allowed':
+      return 'Email link sign-in is not enabled. In Firebase Console → Authentication → Sign-in method, enable Email link (passwordless sign-in).'
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please wait a few minutes and try again.'
+    case 'auth/invalid-action-code':
+    case 'auth/expired-action-code':
+      return 'This sign-in link is invalid or has expired. Request a new one.'
     case 'permission-denied':
       return 'Firestore permission denied. Deploy security rules or check role fields.'
     default:
@@ -85,7 +92,7 @@ function LoginLink() {
 }
 
 export function LoginPage() {
-  const { user, loading, signIn, signInGoogle } = useAuth()
+  const { user, loading, signIn, signInGoogle, sendEmailLink } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from || '/account'
@@ -94,6 +101,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [linkSent, setLinkSent] = useState(false)
 
   if (!loading && user) {
     return <Navigate to={from} replace />
@@ -101,8 +109,13 @@ export function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
+    if (!password) {
+      setError('Enter your password, or use “Email me a sign-in link”.')
+      return
+    }
     setBusy(true)
     setError(null)
+    setLinkSent(false)
     try {
       await signIn(email, password)
       navigate(from, { replace: true })
@@ -116,9 +129,32 @@ export function LoginPage() {
   async function onGoogle() {
     setBusy(true)
     setError(null)
+    setLinkSent(false)
     try {
       await signInGoogle({ requireConsents: false })
       navigate(from, { replace: true })
+    } catch (err) {
+      setError(mapAuthError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onEmailLink() {
+    if (!email.trim()) {
+      setError('Enter your email address to receive a sign-in link.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setLinkSent(false)
+    try {
+      await sendEmailLink({
+        email: email.trim(),
+        intent: 'login',
+        nextPath: from,
+      })
+      setLinkSent(true)
     } catch (err) {
       setError(mapAuthError(err))
     } finally {
@@ -131,52 +167,98 @@ export function LoginPage() {
       title="Welcome back"
       subtitle="Log in for your profile, member newsletter archive, and chat."
     >
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label className="label" htmlFor="login-email">
-            Email
-          </label>
-          <input
-            id="login-email"
-            type="email"
-            required
-            autoComplete="email"
-            className="input"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+      {linkSent ? (
+        <div className="space-y-4">
+          <p className="rounded-xl border border-sage/30 bg-sage/10 px-4 py-3 text-sm text-ink">
+            Check your email for a secure sign-in link
+            {email.trim() ? (
+              <>
+                {' '}
+                sent to <strong className="font-medium">{email.trim()}</strong>
+              </>
+            ) : null}
+            . After you click it, you will return here signed in.
+          </p>
+          <p className="text-xs text-ink-muted">
+            Links expire after a short time. Check spam if needed.
+          </p>
+          <button
+            type="button"
+            className="btn-secondary w-full"
+            onClick={() => {
+              setLinkSent(false)
+              setError(null)
+            }}
+          >
+            Back to log in
+          </button>
         </div>
-        <div>
-          <label className="label" htmlFor="login-password">
-            Password
-          </label>
-          <input
-            id="login-password"
-            type="password"
-            required
-            autoComplete="current-password"
-            className="input"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-        <button type="submit" className="btn-primary w-full" disabled={busy}>
-          {busy ? 'Working…' : 'Log in'}
-        </button>
-        <button
-          type="button"
-          className="btn-secondary w-full"
-          disabled={busy}
-          onClick={() => void onGoogle()}
-        >
-          Continue with Google
-        </button>
-      </form>
+      ) : (
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div>
+            <label className="label" htmlFor="login-email">
+              Email
+            </label>
+            <input
+              id="login-email"
+              type="email"
+              required
+              autoComplete="email"
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="login-password">
+              Password
+            </label>
+            <input
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              className="input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-ink-muted">
+              Optional if you use a passwordless email link below.
+            </p>
+          </div>
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          <button
+            type="submit"
+            className="btn-primary w-full"
+            disabled={busy || !password}
+          >
+            {busy ? 'Working…' : 'Log in with password'}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary w-full"
+            disabled={busy}
+            onClick={() => void onEmailLink()}
+          >
+            Email me a sign-in link
+          </button>
+          <button
+            type="button"
+            className="btn-ghost w-full"
+            disabled={busy}
+            onClick={() => void onGoogle()}
+          >
+            Continue with Google
+          </button>
+        </form>
+      )}
       <p className="text-center text-sm text-ink-muted">
         New here?{' '}
         <Link to="/signup" className="font-semibold">
           Create an account
+        </Link>
+        {' · '}
+        <Link to="/newsletter" className="font-semibold">
+          Join the newsletter
         </Link>
       </p>
     </AuthShell>

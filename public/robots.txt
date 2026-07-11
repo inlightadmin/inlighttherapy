@@ -7,6 +7,8 @@ Disallow: /account
 Disallow: /chat
 Disallow: /login
 Disallow: /signup
+Disallow: /auth
+Disallow: /auth/
 Disallow: /newsletters
 
 Sitemap: https://in-lighttherapy.web.app/sitemap.xml

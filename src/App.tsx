@@ -6,6 +6,7 @@ import { AuthProvider } from '@/context/AuthContext'
 import { AboutPage } from '@/pages/AboutPage'
 import { AccountPage } from '@/pages/AccountPage'
 import { LoginPage, SignupPage } from '@/pages/AuthPages'
+import { EmailLinkPage } from '@/pages/EmailLinkPage'
 import { ClinicianDetailPage } from '@/pages/ClinicianDetailPage'
 import { CliniciansPage } from '@/pages/CliniciansPage'
 import { ContactPage } from '@/pages/ContactPage'
@@ -74,6 +75,7 @@ export default function App() {
             />
             <Route path="login" element={<LoginPage />} />
             <Route path="signup" element={<SignupPage />} />
+            <Route path="auth/email-link" element={<EmailLinkPage />} />
             <Route path="terms" element={<TermsPage />} />
             <Route path="privacy" element={<PrivacyPage />} />
             <Route path="home" element={<Navigate to="/" replace />} />

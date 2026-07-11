@@ -3,7 +3,8 @@ import type { BusinessHours, ClinicianProfile, SiteQuote, Tool } from './types'
 export const PRACTICE = {
   name: 'In-Light Therapy',
   tagline: 'Find the light within',
-  email: 'inlightadmin@gmail.com',
+  /** Public practice inbox (Sean). Developer tooling uses inlightadmin@gmail.com. */
+  email: 's3an1amb@gmail.com',
   phone: '801-318-3396',
   phoneHref: 'tel:8013183396',
   siteUrl: import.meta.env.VITE_SITE_URL || 'https://in-lighttherapy.web.app',

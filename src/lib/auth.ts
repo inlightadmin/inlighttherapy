@@ -2,11 +2,15 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   GoogleAuthProvider,
+  isSignInWithEmailLink,
   onAuthStateChanged,
+  sendSignInLinkToEmail,
   signInWithEmailAndPassword,
+  signInWithEmailLink,
   signInWithPopup,
   signOut as firebaseSignOut,
   updateProfile,
+  type ActionCodeSettings,
   type User,
 } from 'firebase/auth'
 import {
@@ -201,6 +205,199 @@ export async function signInWithEmail(email: string, password: string) {
   const cred = await signInWithEmailAndPassword(auth, email.trim(), password)
   await ensureUserProfile(cred.user)
   return cred.user
+}
+
+// ── Passwordless email link ─────────────────────────────────────────
+
+const EMAIL_LINK_STORAGE_EMAIL = 'emailForSignIn'
+const EMAIL_LINK_STORAGE_INTENT = 'emailLinkIntent'
+const EMAIL_LINK_STORAGE_NEXT = 'emailLinkNext'
+const EMAIL_LINK_STORAGE_PRIVACY = 'emailLinkPrivacyAccepted'
+
+export type EmailLinkIntent = 'newsletter' | 'login'
+
+export type EmailLinkPending = {
+  email: string
+  intent: EmailLinkIntent
+  nextPath: string
+  privacyAccepted: boolean
+}
+
+function normalizeNextPath(next?: string): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return '/account'
+  return next
+}
+
+function displayNameFromEmail(email: string): string {
+  const local = email.split('@')[0]?.trim() || 'Member'
+  const cleaned = local.replace(/[._+-]+/g, ' ').trim()
+  if (!cleaned) return 'Member'
+  return cleaned
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+    .slice(0, 80)
+}
+
+/** Persist email + intent so the same browser can finish the link without re-prompting. */
+export function storeEmailLinkPending(input: {
+  email: string
+  intent: EmailLinkIntent
+  nextPath?: string
+  privacyAccepted?: boolean
+}): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(EMAIL_LINK_STORAGE_EMAIL, input.email.trim().toLowerCase())
+  window.localStorage.setItem(EMAIL_LINK_STORAGE_INTENT, input.intent)
+  window.localStorage.setItem(
+    EMAIL_LINK_STORAGE_NEXT,
+    normalizeNextPath(input.nextPath),
+  )
+  window.localStorage.setItem(
+    EMAIL_LINK_STORAGE_PRIVACY,
+    input.privacyAccepted ? '1' : '0',
+  )
+}
+
+export function readEmailLinkPending(): EmailLinkPending | null {
+  if (typeof window === 'undefined') return null
+  const email = window.localStorage.getItem(EMAIL_LINK_STORAGE_EMAIL)?.trim()
+  if (!email) return null
+  const intentRaw = window.localStorage.getItem(EMAIL_LINK_STORAGE_INTENT)
+  const intent: EmailLinkIntent =
+    intentRaw === 'newsletter' ? 'newsletter' : 'login'
+  return {
+    email,
+    intent,
+    nextPath: normalizeNextPath(
+      window.localStorage.getItem(EMAIL_LINK_STORAGE_NEXT) ?? undefined,
+    ),
+    privacyAccepted:
+      window.localStorage.getItem(EMAIL_LINK_STORAGE_PRIVACY) === '1',
+  }
+}
+
+export function clearEmailLinkPending(): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(EMAIL_LINK_STORAGE_EMAIL)
+  window.localStorage.removeItem(EMAIL_LINK_STORAGE_INTENT)
+  window.localStorage.removeItem(EMAIL_LINK_STORAGE_NEXT)
+  window.localStorage.removeItem(EMAIL_LINK_STORAGE_PRIVACY)
+}
+
+export function isEmailSignInLink(url: string = window.location.href): boolean {
+  if (!auth) return false
+  return isSignInWithEmailLink(auth, url)
+}
+
+/**
+ * Send a passwordless sign-in link.
+ * Newsletter flow stores consent intent; login flow only signs in.
+ */
+export async function sendEmailSignInLink(input: {
+  email: string
+  intent: EmailLinkIntent
+  nextPath?: string
+  /** Required for newsletter subscribe (Privacy + marketing email). */
+  privacyAccepted?: boolean
+}): Promise<void> {
+  if (!auth) throw new Error('Firebase is not configured')
+
+  const email = input.email.trim().toLowerCase()
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Please enter a valid email address.')
+  }
+
+  if (input.intent === 'newsletter' && !input.privacyAccepted) {
+    throw new Error(
+      'Please accept the Privacy Policy to receive the monthly newsletter.',
+    )
+  }
+
+  const nextPath = normalizeNextPath(
+    input.nextPath ??
+      (input.intent === 'newsletter' ? '/newsletter' : '/account'),
+  )
+
+  const continueUrl = new URL('/auth/email-link', window.location.origin)
+  continueUrl.searchParams.set('next', nextPath)
+  continueUrl.searchParams.set('intent', input.intent)
+
+  const actionCodeSettings: ActionCodeSettings = {
+    url: continueUrl.toString(),
+    handleCodeInApp: true,
+  }
+
+  await sendSignInLinkToEmail(auth, email, actionCodeSettings)
+
+  storeEmailLinkPending({
+    email,
+    intent: input.intent,
+    nextPath,
+    privacyAccepted: Boolean(input.privacyAccepted),
+  })
+}
+
+/**
+ * After the user clicks the email link: complete Auth, ensure users/{uid},
+ * and apply newsletter consent when that was the intent.
+ */
+export async function completeEmailSignInLink(input?: {
+  email?: string
+  href?: string
+}): Promise<{ profile: UserProfile; nextPath: string; intent: EmailLinkIntent }> {
+  if (!auth || !db) throw new Error('Firebase is not configured')
+
+  const href = input?.href ?? window.location.href
+  if (!isSignInWithEmailLink(auth, href)) {
+    throw new Error('This sign-in link is invalid or has already been used.')
+  }
+
+  const pending = readEmailLinkPending()
+  const email = (input?.email ?? pending?.email ?? '').trim().toLowerCase()
+  if (!email) {
+    throw new Error('EMAIL_REQUIRED')
+  }
+
+  const intent: EmailLinkIntent = pending?.intent ?? 'login'
+  const nextPath = normalizeNextPath(pending?.nextPath)
+  const privacyAccepted = pending?.privacyAccepted ?? intent === 'newsletter'
+
+  const cred = await signInWithEmailLink(auth, email, href)
+  clearEmailLinkPending()
+
+  const existing = await fetchUserProfile(cred.user.uid)
+
+  if (!existing) {
+    const profile = await ensureUserProfile(cred.user, {
+      email,
+      displayName: displayNameFromEmail(email),
+      role: 'USER',
+      newsletterConsent: intent === 'newsletter',
+      privacyAccepted: privacyAccepted || intent === 'newsletter',
+      termsAccepted: false,
+      smsConsent: false,
+      chatOptIn: false,
+      forceCreate: true,
+    })
+    return { profile, nextPath, intent }
+  }
+
+  // Existing member: honor newsletter intent without clobbering role / staff.
+  if (intent === 'newsletter' && !existing.newsletterConsent?.agreed) {
+    const profile = await optInToNewsletter(cred.user.uid)
+    if (privacyAccepted && !existing.privacyAcceptedAt) {
+      await updateDoc(doc(db, 'users', cred.user.uid), {
+        privacyAcceptedAt: nowIso(),
+        updatedAt: serverTimestamp(),
+      })
+      const refreshed = await fetchUserProfile(cred.user.uid)
+      return { profile: refreshed ?? profile, nextPath, intent }
+    }
+    return { profile, nextPath, intent }
+  }
+
+  return { profile: existing, nextPath, intent }
 }
 
 export async function signInWithGoogle(options?: {
